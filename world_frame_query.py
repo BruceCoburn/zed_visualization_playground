@@ -61,16 +61,18 @@ class WorldFrameMeasurements(QDialog):
         self.world_frame_width = float(self.widthInput.text())
         self.accept()
 
-def worldFrameQuery(world_Frame_length=10, world_frame_width=8):
-    app = QApplication(sys.argv)
+def worldFrameQuery(world_frame_length=10, world_frame_width=8, use_default=False):
 
-    dialog = WorldFrameMeasurements(world_Frame_length, world_frame_width)
+    if not use_default:
+        app = QApplication(sys.argv)
 
-    if dialog.exec_():  # Execute the dialog and check if accepted
-        world_frame_length = dialog.world_frame_length
-        world_frame_width = dialog.world_frame_width
-    else:
-        print("User cancelled input...")
+        dialog = WorldFrameMeasurements(world_frame_length, world_frame_width)
+
+        if dialog.exec_():  # Execute the dialog and check if accepted
+            world_frame_length = dialog.world_frame_length
+            world_frame_width = dialog.world_frame_width
+        else:
+            print("User cancelled input...")
 
     return world_frame_length, world_frame_width
 
