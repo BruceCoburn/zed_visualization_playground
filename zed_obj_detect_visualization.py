@@ -1,12 +1,13 @@
 # Import native python libraries
 import cv2
 import numpy as np
+import math
 
 # Import custom python libraries / modules
 from world_frame_query import worldFrameQuery
 
 
-def redraw_grid(img, pixels_per_grid_line):
+def draw_grid(img, pixels_per_grid_line):
     """
     This function redraws the grid on the image.
     :param img: np array representing the image
@@ -38,19 +39,42 @@ if __name__ == "__main__":
     img_height = num_lines_width * pixels_per_grid_line # 1 meter = 50 pixels
     img_width = num_lines_length * pixels_per_grid_line # 1 meter = 50 pixels
 
-    # Create a blank image
-    img = np.zeros((img_height, img_width, 3), dtype=np.uint8)
-    print(f"Image shape: {img.shape}")
+    # Create a blank image for the tracking visualization and grid framework
+    tracking_img = np.zeros((img_height, img_width, 3), dtype=np.uint8)
+    print(f"Tracking Image shape: {tracking_img.shape}")
 
-    redraw_grid(img, pixels_per_grid_line)
+    # Static grid image
+    grid_img = np.zeros((img_height, img_width, 3), dtype=np.uint8)
+    draw_grid(grid_img, pixels_per_grid_line)
 
-    # Draw a red circle in the center of the image
-    center = (img_width // 2, img_height // 2)
-    radius = 10
-    cv2.circle(img, center, radius, (0, 0, 255), -1)
+    """
+    Test animation parameters
+    """
+    radius = 75
+    angle = 0
+    center_of_rotation = (img_width // 2, img_height // 2)
 
     # Create a resizable window and display the image
-    cv2.namedWindow("Grid", cv2.WINDOW_NORMAL)
-    cv2.imshow("Grid", img)
-    cv2.waitKey(0)
+    window_name = "Grid"
+    cv2.namedWindow(window_name, cv2.WINDOW_NORMAL)
+
+    while True:
+        # Clear image and redraw grid
+        tracking_img = grid_img.copy()
+
+        # Calculate circle position
+        x = int(center_of_rotation[0] + radius * math.cos(angle))
+        y = int(center_of_rotation[1] + radius * math.sin(angle))
+
+        # Draw circle
+        cv2.circle(tracking_img, (x, y), 10, (0, 0, 255), -1)
+
+        # Show image
+        cv2.imshow(window_name, tracking_img)
+        if cv2.waitKey(50) & 0xFF == ord('q'):  # Press 'q' to quit
+            break
+
+        # Update angle for next frame
+        angle += 0.1
+
     cv2.destroyAllWindows()
