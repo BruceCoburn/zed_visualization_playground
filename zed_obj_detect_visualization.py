@@ -67,7 +67,7 @@ if __name__ == "__main__":
         y = int(center_of_rotation[1] + radius * math.sin(angle))
 
         # Draw circle
-        cv2.circle(tracking_img, (x, y), 10, (0, 0, 255), -1)
+        cv2.circle(tracking_img, (x, y), 5, (0, 0, 255), -1)
 
         # Show image
         cv2.imshow(window_name, tracking_img)
