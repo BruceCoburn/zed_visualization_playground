@@ -5,7 +5,7 @@ import math
 import random
 
 from PyQt5.QtWidgets import QApplication, QWidget, QVBoxLayout, QLabel
-from PyQt5.QtGui import QImage, QPixmap
+from PyQt5.QtGui import QImage, QPixmap, QGuiApplication
 from PyQt5.QtCore import QTimer, Qt
 
 import numpy as np
@@ -73,11 +73,14 @@ class ObjDetectionMap(QLabel):
         # Update angle for next frame
         self.angle += 0.1
 
+        self.update_tracking_image()
+
+    def update_tracking_image(self):
         qImg = QImage(self.tracking_img.data,
                       self.tracking_img.shape[1],
                       self.tracking_img.shape[0],
                       self.tracking_img.strides[0],
-                      QImage.Format_RGB888).rgbSwapped()
+                      QImage.Format_RGB888).rgbSwapped().scaled(self.width(), self.height(), Qt.KeepAspectRatio)
         self.setPixmap(QPixmap.fromImage(qImg))
 
 class ZEDCameraWindow(QWidget):
@@ -94,10 +97,20 @@ class ZEDCameraWindow(QWidget):
 
         self.tracking_img = ObjDetectionMap(frame_length, frame_width, pixels_per_grid_line)
 
+        # Get the size of the screen
+        screen = QGuiApplication.primaryScreen().size()
+        screen_width = screen.width()
+        screen_height = screen.height()
+
+        # Calculate 80% of the screen size
+        width_80_percent = int(screen_width * 0.8)
+        height_80_percent = int(screen_height * 0.8)
+
         self.layout.addWidget(self.translationLabel)
         self.layout.addWidget(self.orientationLabel)
         self.layout.addWidget(self.imuLabel)
 
+        self.tracking_img.setFixedSize(width_80_percent, height_80_percent)
         self.layout.addWidget(self.tracking_img)
 
         self.setLayout(self.layout)
