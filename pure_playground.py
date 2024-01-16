@@ -1,33 +1,115 @@
 import pyzed.sl as sl
 import sys
+import cv2
+import math
+import random
 
 from PyQt5.QtWidgets import QApplication, QWidget, QVBoxLayout, QLabel
-from PyQt5.QtCore import QTimer
+from PyQt5.QtGui import QImage, QPixmap
+from PyQt5.QtCore import QTimer, Qt
+
+import numpy as np
+
+from world_frame_query import worldFrameQuery
+
+class ObjDetectionMap(QLabel):
+    def __init__(self,
+                 frame_length,
+                 frame_width,
+                 pixels_per_grid_line,
+                 parent=None):
+        super().__init__(parent)
+
+        self.angle = 0
+
+        self.pixels_per_grid_line = pixels_per_grid_line
+
+        # Draw reference grid image
+        self.grid_img = np.zeros((frame_width, frame_length, 3), dtype=np.uint8)
+        self.draw_grid()
+
+        self.tracking_img = self.grid_img.copy()
+        print(f"Tracking Image shape: {self.tracking_img.shape}")
+        qImg = QImage(self.grid_img.data,
+                      self.grid_img.shape[1],
+                      self.grid_img.shape[0],
+                      self.grid_img.strides[0],
+                      QImage.Format_RGB888).rgbSwapped()
+        self.setPixmap(QPixmap.fromImage(qImg))
+
+    def draw_grid(self):
+        """
+        This function redraws the grid on the image.
+        :param img: np array representing the image
+        :return:
+        """
+
+        # Random number between 0 -255
+        r = random.randint(0, 255)
+
+        # Draw white vertical lines
+        for i in range(0, self.grid_img.shape[1], self.pixels_per_grid_line):
+            cv2.line(self.grid_img, (i, 0), (i, self.grid_img.shape[0]), (255, r, 255), 1)
+        # Draw white horizontal lines
+        for i in range(0, self.grid_img.shape[0], self.pixels_per_grid_line):
+            cv2.line(self.grid_img, (0, i), (self.grid_img.shape[1], i), (r, 255, 255), 1)
+
+    def updatePosition(self):
+
+        # Clear image and redraw grid
+        self.tracking_img = self.grid_img.copy()
+
+        center_of_rotation = (self.tracking_img.shape[1] // 2, self.tracking_img.shape[0] // 2)
+        radius = 75
+
+
+        # Calculate circle position
+        x = int(center_of_rotation[0] + radius * math.cos(self.angle))
+        y = int(center_of_rotation[1] + radius * math.sin(self.angle))
+
+        # Draw circle
+        cv2.circle(self.tracking_img, (x, y), 5, (0, 0, 255), -1)
+
+        # Update angle for next frame
+        self.angle += 0.1
+
+        qImg = QImage(self.tracking_img.data,
+                      self.tracking_img.shape[1],
+                      self.tracking_img.shape[0],
+                      self.tracking_img.strides[0],
+                      QImage.Format_RGB888).rgbSwapped()
+        self.setPixmap(QPixmap.fromImage(qImg))
 
 class ZEDCameraWindow(QWidget):
-    def __init__(self):
+    def __init__(self, frame_length, frame_width, pixels_per_grid_line):
         super().__init__()
-        self.initUI()
+        self.initUI(frame_length, frame_width, pixels_per_grid_line)
 
-    def initUI(self):
+    def initUI(self, frame_length, frame_width, pixels_per_grid_line=25):
         self.layout = QVBoxLayout()
 
         self.translationLabel = QLabel("Translation: ")
         self.orientationLabel = QLabel("Orientation: ")
         self.imuLabel = QLabel("IMU Data: ")
 
+        self.tracking_img = ObjDetectionMap(frame_length, frame_width, pixels_per_grid_line)
+
         self.layout.addWidget(self.translationLabel)
         self.layout.addWidget(self.orientationLabel)
         self.layout.addWidget(self.imuLabel)
 
+        self.layout.addWidget(self.tracking_img)
+
         self.setLayout(self.layout)
         self.setWindowTitle('ZED Camera Tracking')
-        self.show()
+        self.showMaximized()
 
     def updateData(self, translation, orientation, imu_data):
         self.translationLabel.setText(f"Translation: {translation}")
         self.orientationLabel.setText(f"Orientation: {orientation}")
         self.imuLabel.setText(f"IMU Data: {imu_data}")
+
+        self.tracking_img.updatePosition()
 
 def update_gui(window, zed, zed_pose, zed_sensors, can_compute_imu):
     if zed.grab() == sl.ERROR_CODE.SUCCESS:
@@ -40,8 +122,8 @@ def update_gui(window, zed, zed_pose, zed_sensors, can_compute_imu):
         tx = round(zed_pose.get_translation(py_translation).get()[0], 3)
         ty = round(zed_pose.get_translation(py_translation).get()[1], 3)
         tz = round(zed_pose.get_translation(py_translation).get()[2], 3)
-        print("Translation: Tx: {0}, Ty: {1}, Tz {2}, Timestamp: {3}\n".format(tx, ty, tz,
-                                                                               zed_pose.timestamp.get_milliseconds()))
+        # print("Translation: Tx: {0}, Ty: {1}, Tz {2}, Timestamp: {3}\n".format(tx, ty, tz,
+        #                                                                        zed_pose.timestamp.get_milliseconds()))
 
         # Display the orientation quaternion
         py_orientation = sl.Orientation()
@@ -49,18 +131,18 @@ def update_gui(window, zed, zed_pose, zed_sensors, can_compute_imu):
         oy = round(zed_pose.get_orientation(py_orientation).get()[1], 3)
         oz = round(zed_pose.get_orientation(py_orientation).get()[2], 3)
         ow = round(zed_pose.get_orientation(py_orientation).get()[3], 3)
-        print("Orientation: Ox: {0}, Oy: {1}, Oz {2}, Ow: {3}\n".format(ox, oy, oz, ow))
+        # print("Orientation: Ox: {0}, Oy: {1}, Oz {2}, Ow: {3}\n".format(ox, oy, oz, ow))
 
         if can_compute_imu:
             zed.get_sensors_data(zed_sensors, sl.TIME_REFERENCE.IMAGE)
             zed_imu = zed_sensors.get_imu_data()
-            # Display the IMU acceleratoin
+            # Display the IMU acceleration
             acceleration = [0, 0, 0]
             zed_imu.get_linear_acceleration(acceleration)
             ax = round(acceleration[0], 3)
             ay = round(acceleration[1], 3)
             az = round(acceleration[2], 3)
-            print("IMU Acceleration: Ax: {0}, Ay: {1}, Az {2}\n".format(ax, ay, az))
+            # print("IMU Acceleration: Ax: {0}, Ay: {1}, Az {2}\n".format(ax, ay, az))
 
             # Display the IMU angular velocity
             a_velocity = [0, 0, 0]
@@ -68,7 +150,7 @@ def update_gui(window, zed, zed_pose, zed_sensors, can_compute_imu):
             vx = round(a_velocity[0], 3)
             vy = round(a_velocity[1], 3)
             vz = round(a_velocity[2], 3)
-            print("IMU Angular Velocity: Vx: {0}, Vy: {1}, Vz {2}\n".format(vx, vy, vz))
+            # print("IMU Angular Velocity: Vx: {0}, Vy: {1}, Vz {2}\n".format(vx, vy, vz))
 
             # Display the IMU orientation quaternion
             zed_imu_pose = sl.Transform()
@@ -76,7 +158,7 @@ def update_gui(window, zed, zed_pose, zed_sensors, can_compute_imu):
             oy = round(zed_imu.get_pose(zed_imu_pose).get_orientation().get()[1], 3)
             oz = round(zed_imu.get_pose(zed_imu_pose).get_orientation().get()[2], 3)
             ow = round(zed_imu.get_pose(zed_imu_pose).get_orientation().get()[3], 3)
-            print("IMU Orientation: Ox: {0}, Oy: {1}, Oz {2}, Ow: {3}\n".format(ox, oy, oz, ow))
+            # print("IMU Orientation: Ox: {0}, Oy: {1}, Oz {2}, Ow: {3}\n".format(ox, oy, oz, ow))
 
         # Update the GUI
         window.updateData(f"Tx: {tx}, Ty: {ty}, Tz: {tz}",
@@ -87,10 +169,29 @@ def update_gui(window, zed, zed_pose, zed_sensors, can_compute_imu):
 
 
 def main():
+
+    # Get world frame measurements
+    world_frame_length, world_frame_width = worldFrameQuery(use_default=True)
+    print(f"World Frame Length (m): {world_frame_length}")
+    print(f"World Frame Width (m): {world_frame_width}")
+
+    # Define the scale (pixels per grid line, each grid line represents 0.5 meters)
+    pixels_per_grid_line = 25  # If each grid line represents 0.5 meters,
+    # then 25 pixels per grid line is 50 pixels per meter
+    # or 2 pixels per centimeter
+
+    # Calculate the number of grid lines and then the size of the image in pixels
+    num_lines_length = int(world_frame_length / 0.5)
+    num_lines_width = int(world_frame_width / 0.5)
+    world_frame_width_quant = num_lines_width * pixels_per_grid_line  # 1 meter = 50 pixels
+    world_frame_length_quant = num_lines_length * pixels_per_grid_line  # 1 meter = 50 pixels
+
     # Create a Camera object
+    print("Initializing ZED Camera...")
     zed = sl.Camera()
 
     # Create a InitParameters object and set configuration parameters
+    print(f"Setting configuration parameters...")
     init_params = sl.InitParameters()
     init_params.camera_resolution = sl.RESOLUTION.AUTO
     print(f"Camera Resolution: {init_params.camera_resolution}")
@@ -98,12 +199,14 @@ def main():
     init_params.coordinate_units = sl.UNIT.METER
 
     # Open the camera
+    print(f"Opening Camera...")
     err = zed.open(init_params)
     if err != sl.ERROR_CODE.SUCCESS:
         print(f"Camera Open : {repr(err)}. Exit program.")
         exit()
 
     # Enable positional tracking with default parameters
+    print(f"Enabling Positional Tracking...")
     py_transform = sl.Transform()
     tracking_parameters = sl.PositionalTrackingParameters(_init_pos=py_transform)
     err = zed.enable_positional_tracking(tracking_parameters)
@@ -113,6 +216,7 @@ def main():
         exit()
 
     # Track the camera position
+    print(f"Tracking Camera Position...")
     zed_pose = sl.Pose()
 
     zed_sensors = sl.SensorsData()
@@ -122,12 +226,13 @@ def main():
     print(f"Can compute IMU: {can_compute_imu}")
 
     # Create a GUI window
+    print(f"Creating GUI window...")
     app = QApplication(sys.argv)
-    window = ZEDCameraWindow()
+    window = ZEDCameraWindow(world_frame_length_quant, world_frame_width_quant, pixels_per_grid_line)
 
     timer = QTimer()
     timer.timeout.connect(lambda: update_gui(window, zed, zed_pose, zed_sensors, can_compute_imu))
-    timer.start(1000)
+    timer.start(100)
 
     # Start the application's event loop
     exit_code = app.exec_()

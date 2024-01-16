@@ -64,6 +64,7 @@ class WorldFrameMeasurements(QDialog):
 def worldFrameQuery(world_frame_length=10, world_frame_width=8, use_default=False):
 
     if not use_default:
+        print(f"Getting world frame measurements from user...")
         app = QApplication(sys.argv)
 
         dialog = WorldFrameMeasurements(world_frame_length, world_frame_width)
