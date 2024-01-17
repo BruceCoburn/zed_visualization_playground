@@ -20,7 +20,12 @@ class ObjDetectionMap(QLabel):
                  parent=None):
         super().__init__(parent)
 
-        self.angle = 0
+        # Start in the center of the image
+        self.reference_x_pos = frame_length // 2
+        self.reference_y_pos = frame_width // 2
+
+        self.x_pos = self.reference_x_pos
+        self.y_pos = self.reference_y_pos
 
         self.pixels_per_grid_line = pixels_per_grid_line
 
@@ -54,25 +59,28 @@ class ObjDetectionMap(QLabel):
         for i in range(0, self.grid_img.shape[0], self.pixels_per_grid_line):
             cv2.line(self.grid_img, (0, i), (self.grid_img.shape[1], i), (r, 255, 255), 1)
 
-    def updatePosition(self):
+    def update_positions(self, tx, ty):
+
+        # Update positions
+
+        # Update y position (need to flip ty due to coordinate system)
+        self.y_pos = self.reference_y_pos - int(ty * self.pixels_per_grid_line)
+        # print(f"Ty: {ty}, Y Pos (px): {self.y_pos}")
+
+        # Update x position
+        self.x_pos = self.reference_x_pos + int(tx * self.pixels_per_grid_line)
+        # print(f"Tx: {tx}, X Pos (px): {self.x_pos}")
 
         # Clear image and redraw grid
         self.tracking_img = self.grid_img.copy()
 
-        center_of_rotation = (self.tracking_img.shape[1] // 2, self.tracking_img.shape[0] // 2)
-        radius = 75
+        # Determine positions
+        self.determine_positions(translation=None, orientation=None)
 
+        # Draw camera circle
+        cv2.circle(self.tracking_img, (self.x_pos, self.y_pos), 5, (0, 0, 255), -1) # cv2 is BGR
 
-        # Calculate circle position
-        x = int(center_of_rotation[0] + radius * math.cos(self.angle))
-        y = int(center_of_rotation[1] + radius * math.sin(self.angle))
-
-        # Draw circle
-        cv2.circle(self.tracking_img, (x, y), 5, (0, 0, 255), -1)
-
-        # Update angle for next frame
-        self.angle += 0.1
-
+        # Update tracking image
         self.update_tracking_image()
 
     def update_tracking_image(self):
@@ -83,9 +91,39 @@ class ObjDetectionMap(QLabel):
                       QImage.Format_RGB888).rgbSwapped().scaled(self.width(), self.height(), Qt.KeepAspectRatio)
         self.setPixmap(QPixmap.fromImage(qImg))
 
+    def determine_positions(self, translation, orientation):
+        """
+        This function determines the x and y position of the camera in the image.
+        :param translation: The translation of the camera in the world frame
+        :param orientation: The orientation of the camera in the world frame
+        :return:
+        """
+        pass
+
 class ZEDCameraWindow(QWidget):
     def __init__(self, frame_length, frame_width, pixels_per_grid_line):
         super().__init__()
+
+        self.tx = int(0)
+        self.ty = int(0)
+        self.tz = int(0)
+        self.translation_str = f"Tx: {self.tx}, Ty: {self.ty}, Tz: {self.tz}"
+
+        self.ox = int(0)
+        self.oy = int(0)
+        self.oz = int(0)
+        self.ow = int(0)
+        self.orientation_str = f"Ox: {self.ox}, Oy: {self.oy}, Oz: {self.oz}, Ow: {self.ow}"
+
+        self.ax = int(0)
+        self.ay = int(0)
+        self.az = int(0)
+        self.vx = int(0)
+        self.vy = int(0)
+        self.vz = int(0)
+        self.imu_str = f"IMU Acceleration: Ax: {self.ax}, Ay: {self.ay}, Az: {self.az}, " \
+                        f"IMU Angular Velocity: Vx: {self.vx}, Vy: {self.vy}, Vz: {self.vz}"
+
         self.initUI(frame_length, frame_width, pixels_per_grid_line)
 
     def initUI(self, frame_length, frame_width, pixels_per_grid_line=25):
@@ -117,12 +155,22 @@ class ZEDCameraWindow(QWidget):
         self.setWindowTitle('ZED Camera Tracking')
         self.showMaximized()
 
-    def updateData(self, translation, orientation, imu_data):
-        self.translationLabel.setText(f"Translation: {translation}")
-        self.orientationLabel.setText(f"Orientation: {orientation}")
-        self.imuLabel.setText(f"IMU Data: {imu_data}")
+    def updateData(self,
+                   tx, ty, tz,
+                   ox, oy, oz, ow,
+                   ax, ay, az,
+                   vx, vy, vz):
 
-        self.tracking_img.updatePosition()
+        self.translation_str = f"Tx: {tx}, Ty: {ty}, Tz: {tz}"
+        self.orientation_str = f"Ox: {ox}, Oy: {oy}, Oz: {oz}, Ow: {ow}"
+        self.acceleration_str = f"IMU Acceleration: Ax: {ax}, Ay: {ay}, Az: {az}"
+        self.angular_velocity_str = f"IMU Angular Velocity: Vx: {vx}, Vy: {vy}, Vz: {vz}"
+
+        self.translationLabel.setText(f"Translation: {self.translation_str}")
+        self.orientationLabel.setText(f"Orientation: {self.orientation_str}")
+        self.imuLabel.setText(f"IMU Data: {self.acceleration_str}, {self.angular_velocity_str}")
+
+        self.tracking_img.update_positions(tx, ty)
 
 def update_gui(window, zed, zed_pose, zed_sensors, can_compute_imu):
     if zed.grab() == sl.ERROR_CODE.SUCCESS:
@@ -174,11 +222,10 @@ def update_gui(window, zed, zed_pose, zed_sensors, can_compute_imu):
             # print("IMU Orientation: Ox: {0}, Oy: {1}, Oz {2}, Ow: {3}\n".format(ox, oy, oz, ow))
 
         # Update the GUI
-        window.updateData(f"Tx: {tx}, Ty: {ty}, Tz: {tz}",
-                          f"Ox: {ox}, Oy: {oy}, Oz: {oz}, Ow: {ow}",
-                          f"IMU Acceleration: Ax: {ax}, Ay: {ay}, Az: {az}, "
-                          f"IMU Angular Velocity: Vx: {vx}, Vy: {vy}, Vz: {vz}")
-
+        window.updateData(tx, ty, tz,
+                          ox, oy, oz, ow,
+                          ax, ay, az,
+                          vx, vy, vz)
 
 
 def main():
