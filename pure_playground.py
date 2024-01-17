@@ -115,15 +115,6 @@ class ZEDCameraWindow(QWidget):
         self.ow = int(0)
         self.orientation_str = f"Ox: {self.ox}, Oy: {self.oy}, Oz: {self.oz}, Ow: {self.ow}"
 
-        self.ax = int(0)
-        self.ay = int(0)
-        self.az = int(0)
-        self.vx = int(0)
-        self.vy = int(0)
-        self.vz = int(0)
-        self.imu_str = f"IMU Acceleration: Ax: {self.ax}, Ay: {self.ay}, Az: {self.az}, " \
-                        f"IMU Angular Velocity: Vx: {self.vx}, Vy: {self.vy}, Vz: {self.vz}"
-
         self.initUI(frame_length, frame_width, pixels_per_grid_line)
 
     def initUI(self, frame_length, frame_width, pixels_per_grid_line=25):
@@ -131,7 +122,6 @@ class ZEDCameraWindow(QWidget):
 
         self.translationLabel = QLabel("Translation: ")
         self.orientationLabel = QLabel("Orientation: ")
-        self.imuLabel = QLabel("IMU Data: ")
 
         self.tracking_img = ObjDetectionMap(frame_length, frame_width, pixels_per_grid_line)
 
@@ -146,7 +136,6 @@ class ZEDCameraWindow(QWidget):
 
         self.layout.addWidget(self.translationLabel)
         self.layout.addWidget(self.orientationLabel)
-        self.layout.addWidget(self.imuLabel)
 
         self.tracking_img.setFixedSize(width_80_percent, height_80_percent)
         self.layout.addWidget(self.tracking_img)
@@ -157,18 +146,13 @@ class ZEDCameraWindow(QWidget):
 
     def updateData(self,
                    tx, ty, tz,
-                   ox, oy, oz, ow,
-                   ax, ay, az,
-                   vx, vy, vz):
+                   ox, oy, oz, ow):
 
         self.translation_str = f"Tx: {tx}, Ty: {ty}, Tz: {tz}"
         self.orientation_str = f"Ox: {ox}, Oy: {oy}, Oz: {oz}, Ow: {ow}"
-        self.acceleration_str = f"IMU Acceleration: Ax: {ax}, Ay: {ay}, Az: {az}"
-        self.angular_velocity_str = f"IMU Angular Velocity: Vx: {vx}, Vy: {vy}, Vz: {vz}"
 
         self.translationLabel.setText(f"Translation: {self.translation_str}")
         self.orientationLabel.setText(f"Orientation: {self.orientation_str}")
-        self.imuLabel.setText(f"IMU Data: {self.acceleration_str}, {self.angular_velocity_str}")
 
         self.tracking_img.update_positions(tx, ty)
 
@@ -194,38 +178,36 @@ def update_gui(window, zed, zed_pose, zed_sensors, can_compute_imu):
         ow = round(zed_pose.get_orientation(py_orientation).get()[3], 3)
         # print("Orientation: Ox: {0}, Oy: {1}, Oz {2}, Ow: {3}\n".format(ox, oy, oz, ow))
 
-        if can_compute_imu:
-            zed.get_sensors_data(zed_sensors, sl.TIME_REFERENCE.IMAGE)
-            zed_imu = zed_sensors.get_imu_data()
-            # Display the IMU acceleration
-            acceleration = [0, 0, 0]
-            zed_imu.get_linear_acceleration(acceleration)
-            ax = round(acceleration[0], 3)
-            ay = round(acceleration[1], 3)
-            az = round(acceleration[2], 3)
-            # print("IMU Acceleration: Ax: {0}, Ay: {1}, Az {2}\n".format(ax, ay, az))
-
-            # Display the IMU angular velocity
-            a_velocity = [0, 0, 0]
-            zed_imu.get_angular_velocity(a_velocity)
-            vx = round(a_velocity[0], 3)
-            vy = round(a_velocity[1], 3)
-            vz = round(a_velocity[2], 3)
-            # print("IMU Angular Velocity: Vx: {0}, Vy: {1}, Vz {2}\n".format(vx, vy, vz))
-
-            # Display the IMU orientation quaternion
-            zed_imu_pose = sl.Transform()
-            ox = round(zed_imu.get_pose(zed_imu_pose).get_orientation().get()[0], 3)
-            oy = round(zed_imu.get_pose(zed_imu_pose).get_orientation().get()[1], 3)
-            oz = round(zed_imu.get_pose(zed_imu_pose).get_orientation().get()[2], 3)
-            ow = round(zed_imu.get_pose(zed_imu_pose).get_orientation().get()[3], 3)
-            # print("IMU Orientation: Ox: {0}, Oy: {1}, Oz {2}, Ow: {3}\n".format(ox, oy, oz, ow))
+        # if can_compute_imu:
+        #     zed.get_sensors_data(zed_sensors, sl.TIME_REFERENCE.IMAGE)
+        #     zed_imu = zed_sensors.get_imu_data()
+        #     # Display the IMU acceleration
+        #     acceleration = [0, 0, 0]
+        #     zed_imu.get_linear_acceleration(acceleration)
+        #     ax = round(acceleration[0], 3)
+        #     ay = round(acceleration[1], 3)
+        #     az = round(acceleration[2], 3)
+        #     # print("IMU Acceleration: Ax: {0}, Ay: {1}, Az {2}\n".format(ax, ay, az))
+        #
+        #     # Display the IMU angular velocity
+        #     a_velocity = [0, 0, 0]
+        #     zed_imu.get_angular_velocity(a_velocity)
+        #     vx = round(a_velocity[0], 3)
+        #     vy = round(a_velocity[1], 3)
+        #     vz = round(a_velocity[2], 3)
+        #     # print("IMU Angular Velocity: Vx: {0}, Vy: {1}, Vz {2}\n".format(vx, vy, vz))
+        #
+        #     # Display the IMU orientation quaternion
+        #     zed_imu_pose = sl.Transform()
+        #     ox = round(zed_imu.get_pose(zed_imu_pose).get_orientation().get()[0], 3)
+        #     oy = round(zed_imu.get_pose(zed_imu_pose).get_orientation().get()[1], 3)
+        #     oz = round(zed_imu.get_pose(zed_imu_pose).get_orientation().get()[2], 3)
+        #     ow = round(zed_imu.get_pose(zed_imu_pose).get_orientation().get()[3], 3)
+        #     # print("IMU Orientation: Ox: {0}, Oy: {1}, Oz {2}, Ow: {3}\n".format(ox, oy, oz, ow))
 
         # Update the GUI
         window.updateData(tx, ty, tz,
-                          ox, oy, oz, ow,
-                          ax, ay, az,
-                          vx, vy, vz)
+                          ox, oy, oz, ow)
 
 
 def main():
