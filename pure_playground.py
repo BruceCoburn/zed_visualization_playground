@@ -27,6 +27,8 @@ class ObjDetectionMap(QLabel):
         self.x_pos = self.reference_x_pos
         self.y_pos = self.reference_y_pos
 
+        self.mouth_angle = 45
+
         self.pixels_per_grid_line = pixels_per_grid_line
 
         # Draw reference grid image
@@ -78,7 +80,24 @@ class ObjDetectionMap(QLabel):
         self.determine_positions(translation=None, orientation=None)
 
         # Draw camera circle
-        cv2.circle(self.tracking_img, (self.x_pos, self.y_pos), 5, (0, 0, 255), -1) # cv2 is BGR
+        cv2.circle(self.tracking_img, (self.x_pos, self.y_pos), 7, (0, 0, 255), -1) # cv2 is BGR
+
+        # Angle for the mouth
+        self.mouth_angle += 5  # You can change this value
+
+        # Calculate the starting and ending points of the pie slice
+        start_angle = (90 + self.mouth_angle) % 360
+        end_angle = start_angle + 90
+
+        # Draw the pie slice (Pacman mouth)
+        cv2.ellipse(self.tracking_img, # Image
+                    (self.x_pos, self.y_pos), # Center
+                    (7, 7), # Axes lengths (Radius)
+                    0, # Angle of rotation of ellipse
+                    start_angle, # Start angle of the arc
+                    end_angle, # End angle of the arc
+                    (255, 255, 255),
+                    -1)
 
         # Update tracking image
         self.update_tracking_image()
@@ -104,17 +123,20 @@ class ZEDCameraWindow(QWidget):
     def __init__(self, frame_length, frame_width, pixels_per_grid_line):
         super().__init__()
 
+        # Initialize default translation values
         self.tx = int(0)
         self.ty = int(0)
         self.tz = int(0)
         self.translation_str = f"Tx: {self.tx}, Ty: {self.ty}, Tz: {self.tz}"
 
+        # Initialize default orientation values
         self.ox = int(0)
         self.oy = int(0)
         self.oz = int(0)
         self.ow = int(0)
         self.orientation_str = f"Ox: {self.ox}, Oy: {self.oy}, Oz: {self.oz}, Ow: {self.ow}"
 
+        # Initialize the UI
         self.initUI(frame_length, frame_width, pixels_per_grid_line)
 
     def initUI(self, frame_length, frame_width, pixels_per_grid_line=25):
@@ -177,33 +199,6 @@ def update_gui(window, zed, zed_pose, zed_sensors, can_compute_imu):
         oz = round(zed_pose.get_orientation(py_orientation).get()[2], 3)
         ow = round(zed_pose.get_orientation(py_orientation).get()[3], 3)
         # print("Orientation: Ox: {0}, Oy: {1}, Oz {2}, Ow: {3}\n".format(ox, oy, oz, ow))
-
-        # if can_compute_imu:
-        #     zed.get_sensors_data(zed_sensors, sl.TIME_REFERENCE.IMAGE)
-        #     zed_imu = zed_sensors.get_imu_data()
-        #     # Display the IMU acceleration
-        #     acceleration = [0, 0, 0]
-        #     zed_imu.get_linear_acceleration(acceleration)
-        #     ax = round(acceleration[0], 3)
-        #     ay = round(acceleration[1], 3)
-        #     az = round(acceleration[2], 3)
-        #     # print("IMU Acceleration: Ax: {0}, Ay: {1}, Az {2}\n".format(ax, ay, az))
-        #
-        #     # Display the IMU angular velocity
-        #     a_velocity = [0, 0, 0]
-        #     zed_imu.get_angular_velocity(a_velocity)
-        #     vx = round(a_velocity[0], 3)
-        #     vy = round(a_velocity[1], 3)
-        #     vz = round(a_velocity[2], 3)
-        #     # print("IMU Angular Velocity: Vx: {0}, Vy: {1}, Vz {2}\n".format(vx, vy, vz))
-        #
-        #     # Display the IMU orientation quaternion
-        #     zed_imu_pose = sl.Transform()
-        #     ox = round(zed_imu.get_pose(zed_imu_pose).get_orientation().get()[0], 3)
-        #     oy = round(zed_imu.get_pose(zed_imu_pose).get_orientation().get()[1], 3)
-        #     oz = round(zed_imu.get_pose(zed_imu_pose).get_orientation().get()[2], 3)
-        #     ow = round(zed_imu.get_pose(zed_imu_pose).get_orientation().get()[3], 3)
-        #     # print("IMU Orientation: Ox: {0}, Oy: {1}, Oz {2}, Ow: {3}\n".format(ox, oy, oz, ow))
 
         # Update the GUI
         window.updateData(tx, ty, tz,
